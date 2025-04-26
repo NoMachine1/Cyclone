@@ -637,10 +637,11 @@ Int minKey, maxKey;
     bool rangeFileProvided = false; // Flag to indicate if a range file is provided
     int numCPUs = omp_get_num_procs(); // Default to all available CPU cores
     int stride = 1; // Default stride value
+    std::vector<std::pair<std::string, std::string>> ranges;
 
     // Parse command-line arguments
     for (int i = 1; i < argc; i++) {
-        if (!std::strcmp(argv[i], "-h") && i + 1 < argc) { // Use -h for hash160_hex
+        if (!std::strcmp(argv[i], "-h") && i + 1 < argc) {
             targetHash160Hex = argv[++i];
             hash160Provided = true;
             // Convert the hex string to a byte array
@@ -656,18 +657,20 @@ Int minKey, maxKey;
             }
             puzzleProvided = true;
         } else if (!std::strcmp(argv[i], "-r") && i + 1 < argc) {
-            std::string range = argv[++i];
-            size_t colonPos = range.find(':');
-            if (colonPos == std::string::npos) {
-                std::cerr << "Invalid range format. Expected startHex:endHex.\n";
-                return 1;
+            std::string rangeInput = argv[++i];
+            std::istringstream rangeStream(rangeInput);
+            std::string range;
+            while (std::getline(rangeStream, range, ' ')) {
+                size_t colonPos = range.find(':');
+                if (colonPos == std::string::npos) {
+                    std::cerr << "Invalid range format. Expected startHex:endHex.\n";
+                    return 1;
+                }
+                std::string startHex = range.substr(0, colonPos);
+                std::string endHex = range.substr(colonPos + 1);
+                ranges.emplace_back(startHex, endHex);
             }
-            rangeStartHex = range.substr(0, colonPos);
-            rangeEndHex = range.substr(colonPos + 1);
             rangeProvided = true;
-
-            // Calculate puzzle size for the specified range
-            puzzle = calculatePuzzleSize(rangeStartHex, rangeEndHex);
         } else if (!std::strcmp(argv[i], "-f") && i + 1 < argc) {
             rangeFile = argv[++i];
             rangeFileProvided = true;
@@ -708,7 +711,7 @@ Int minKey, maxKey;
     }
 
     // If a range file is provided, read ranges from the file
-    std::vector<std::pair<std::string, std::string>> ranges;
+
     if (rangeFileProvided) {
         ranges = readRangesFromFile(rangeFile);
         if (ranges.empty()) {
@@ -730,7 +733,7 @@ Int minKey, maxKey;
         rangeEndHex = intToHex(maxKey);
         ranges.emplace_back(rangeStartHex, rangeEndHex);
     } else if (rangeProvided) {
-        ranges.emplace_back(rangeStartHex, rangeEndHex);
+    //    ranges.emplace_back(rangeStartHex, rangeEndHex);
     }
 
     // Flag to track if a match is found
