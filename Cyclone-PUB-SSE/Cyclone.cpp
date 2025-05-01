@@ -313,37 +313,47 @@ public:
 class Xoshiro256plus {
 public:
     Xoshiro256plus(uint64_t seed = 0) {
-        state[0] = seed;
+
+        state[0] = splitmix64(seed);
         for (int i = 1; i < 4; ++i) {
-            state[i] = 1812433253ULL * (state[i - 1] ^ (state[i - 1] >> 30)) + i;
+            state[i] = splitmix64(state[i - 1]);
         }
     }
 
-    ALWAYS_INLINE uint64_t next() {
-        const uint64_t result = state[0] + state[3];
-        
-        // SSE implementation
-        const __m128i s0 = _mm_loadu_si128((__m128i*)&state[0]);
-        const __m128i s2 = _mm_loadu_si128((__m128i*)&state[2]);
-        
-        // Rotate left by 23 (equivalent to xoshiro's rotation)
-        const __m128i sl23 = _mm_slli_epi64(s0, 23);
-        const __m128i sr41 = _mm_srli_epi64(s0, 41);
-        const __m128i rotl23 = _mm_or_si128(sl23, sr41);
-        
-        // Update state
-        const __m128i t = _mm_slli_epi64(s0, 17);
-        __m128i new_s0 = _mm_xor_si128(_mm_xor_si128(s2, s0), rotl23);
-        __m128i new_s2 = _mm_xor_si128(rotl23, t);
-        
-        _mm_storeu_si128((__m128i*)&state[0], new_s0);
-        _mm_storeu_si128((__m128i*)&state[2], new_s2);
-        
+    inline uint64_t next() __attribute__((hot)) {
+        const uint64_t s0 = state[0];
+        const uint64_t s1 = state[1];
+        const uint64_t s2 = state[2];
+        const uint64_t s3 = state[3];
+
+        const uint64_t result = s0 + s3;
+        const uint64_t t = s1 << 17;
+
+        state[2] = s2 ^ s0;
+        state[3] = s3 ^ s1;
+        state[1] = s1 ^ state[2];
+        state[0] = s0 ^ state[3];
+        state[2] ^= t;
+
+        state[3] = rotl(state[3], 45);
+
         return result;
     }
 
 private:
-    alignas(16) uint64_t state[4];
+
+    inline uint64_t splitmix64(uint64_t x) __attribute__((always_inline)) {
+        uint64_t z = (x += 0x9e3779b97f4a7c15);
+        z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9;
+        z = (z ^ (z >> 27)) * 0x94d049bb133111eb;
+        return z ^ (z >> 31);
+    }
+
+    inline uint64_t rotl(const uint64_t x, int k) __attribute__((always_inline)) {
+        return (x << k) | (x >> (64 - k));
+    }
+
+    alignas(32) std::array<uint64_t, 4> state;
 };
 
 Int generateRandomPrivateKey(Int minKey, Int maxKey, Xoshiro256plus &rng) {
