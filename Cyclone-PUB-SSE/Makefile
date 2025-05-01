@@ -15,10 +15,10 @@ CXX = g++
 CXXFLAGS = -m64 -std=c++17 -Ofast -msse2 -msse3 -Wall -Wextra \
            -Wno-write-strings -Wno-unused-variable -Wno-deprecated-copy \
            -Wno-unused-parameter -Wno-sign-compare -Wno-strict-aliasing \
-           -Wno-unused-but-set-variable \
+           -Wno-unused-but-set-variable -fomit-frame-pointer \
            -funroll-loops -ftree-vectorize -fstrict-aliasing -fno-semantic-interposition \
            -fvect-cost-model=unlimited -fno-trapping-math -fipa-ra -flto \
-           -fassociative-math -fopenmp -maes
+           -fassociative-math -fopenmp -fwrapv
 
 # Source files (unchanged)
 SRCS = Cyclone.cpp SECP256K1.cpp Int.cpp Timer.cpp IntGroup.cpp IntMod.cpp Point.cpp 
@@ -73,9 +73,9 @@ endif
 CXXFLAGS = -m64 -std=c++17 -Ofast -msse2 -msse3 -Wall -Wextra \
            -Wno-write-strings -Wno-unused-variable -Wno-deprecated-copy \
            -Wno-unused-parameter -Wno-sign-compare -Wno-strict-aliasing \
-           -Wno-unused-but-set-variable -funroll-loops -ftree-vectorize \
+           -Wno-unused-but-set-variable -funroll-loops -ftree-vectorize -fomit-frame-pointer \
            -fstrict-aliasing -fno-semantic-interposition -fvect-cost-model=unlimited \
-           -fno-trapping-math -fipa-ra -fassociative-math -fopenmp -maes
+           -fno-trapping-math -fipa-ra -fassociative-math -fopenmp -fwrapv
 
 # Add -static flag if STATIC_LINKING is enabled
 ifeq ($(STATIC_LINKING), yes)
