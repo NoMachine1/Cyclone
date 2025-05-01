@@ -18,6 +18,7 @@
 #include "Int.h"
 #include <emmintrin.h>
 #include <string.h>
+#include <iostream>
 
 #define MAX(x,y) (((x)>(y))?(x):(y))
 #define MIN(x,y) (((x)<(y))?(x):(y))
@@ -33,6 +34,27 @@ static uint64_t MM64;     // 64bits lsb negative inverse of P
 #define MSK62  0x3FFFFFFFFFFFFFFF
 
 extern Int _ONE;
+
+#ifdef BMI2
+#  undef _addcarry_u64
+#  define _addcarry_u64(c_in, x, y, pz) _addcarryx_u64((c_in), (x), (y), (pz))
+
+
+inline uint64_t mul128_bmi2(uint64_t x, uint64_t y, uint64_t *high)
+{
+    unsigned long long hi64 = 0;
+    unsigned long long lo64 = _mulx_u64((unsigned long long)x, 
+                                        (unsigned long long)y, 
+                                        &hi64);
+    *high = (uint64_t)hi64;
+    return (uint64_t)lo64;
+}
+
+#  undef _umul128
+#  define _umul128(a, b, highptr) mul128_bmi2((a), (b), (highptr))
+
+#endif // BMI2
+
 
 // ------------------------------------------------
 
@@ -376,6 +398,7 @@ void Int::ModInv() {
   //#define MONTGOMERY 1        // ~360 kOps/s
   #define DRS62 1                // ~780 kOps/s
 
+
   Int u(&_P);
   Int v(this);
   Int r((int64_t)0);
@@ -618,18 +641,51 @@ void Int::ModCube(Int *a) {
 }
 
 // ------------------------------------------------
+int LegendreSymbol(const Int &a, Int &p)
+{
+    Int A(a);
+    A.Mod(&p);
+    if (A.IsZero()) {
+        return 0;
+    }
 
-bool Int::HasSqrt() {
+    int result = 1;  
 
-  // Euler's criterion
-  Int e(&_P);
-  Int a(this);
-  e.SubOne();
-  e.ShiftR(1);
-  a.ModExp(&e);
+    Int P(p);
 
-  return a.IsOne();
+    while (!A.IsZero()) {
+ 
+        while (A.IsEven()) {
+            A.ShiftR(1);  
 
+            uint64_t p_mod8 = (P.bits64[0] & 7ULL);  // P % 8
+            if (p_mod8 == 3ULL || p_mod8 == 5ULL) {
+                result = -result;
+            }
+        }
+
+        uint64_t A_mod4 = (A.bits64[0] & 3ULL);
+        uint64_t P_mod4 = (P.bits64[0] & 3ULL);
+        if (A_mod4 == 3ULL && P_mod4 == 3ULL) {
+            result = -result;
+        }
+
+        {
+            Int tmp = A;
+            A = P;
+            P = tmp;
+        }
+        A.Mod(&P);
+    }
+
+    return P.IsOne() ? result : 0;
+}
+// ------------------------------------------------
+bool Int::HasSqrt()
+{
+
+    int ls = LegendreSymbol(*this, _P);
+    return (ls == 1);
 }
 
 // ------------------------------------------------
@@ -793,65 +849,43 @@ void Int::SetupField(Int *n, Int *R, Int *R2, Int *R3, Int *R4) {
 
 }
 
-inline uint64_t AddWithCarry(uint64_t a, uint64_t b, uint64_t* carry) {
-    __asm__("addq %2, %0; adcq $0, %1" 
-            : "+r"(a), "+r"(*carry) 
-            : "r"(b) 
-            : "cc");
-    return a;
-}
-
 // ------------------------------------------------
-void Int::MontgomeryMult(Int* a) {
+void Int::MontgomeryMult(Int *a) {
 
-    uint64_t pr[NB64BLOCK * 2] = {0};
-    uint64_t p[NB64BLOCK] = {0};
-    uint64_t t[NB64BLOCK] = {0};
-    uint64_t ML, c;
+  // Compute a*b*R^-1 (mod n),  R=2^k (mod n), k = Msize*64
+  // a and b must be lower than n
+  // See SetupField()
 
-    // i = 0
-    imm_umul(a->bits64, bits64[0], pr);
-    ML = pr[0] * MM64;
-    imm_umul(_P.bits64, ML, p);
-    
-    c = 0;
-    for (int j = 0; j < NB64BLOCK; j++) {
-        pr[j] = AddWithCarry(pr[j], p[j], &c);
-    }
+  Int t;
+  Int pr;
+  Int p;
+  uint64_t ML;
+  uint64_t c;
 
-    // Shift right by 64 bits
-    memcpy(t, pr + 1, (NB64BLOCK - 1) * 8);
-    t[NB64BLOCK - 1] = c;
+  // i = 0
+  imm_umul(a->bits64, bits64[0], pr.bits64);
+  ML = pr.bits64[0] * MM64;
+  imm_umul(_P.bits64, ML, p.bits64);
+  c = pr.AddC(&p);
+  memcpy(t.bits64, pr.bits64 + 1, 8 * (NB64BLOCK - 1));
+  t.bits64[NB64BLOCK - 1] = c;
 
-    for (int i = 1; i < Msize; i++) {
-        imm_umul(a->bits64, bits64[i], pr);
-        ML = (pr[0] + t[0]) * MM64;
-        imm_umul(_P.bits64, ML, p);
-        
-        c = 0;
-        for (int j = 0; j < NB64BLOCK; j++) {
-            pr[j] = AddWithCarry(pr[j], p[j], &c);
-        }
+  for (int i = 1; i < Msize; i++) {
 
-        // Shift and add to t
-        uint64_t carry = c;
-        for (int j = 0; j < NB64BLOCK - 1; j++) {
-            t[j] = AddWithCarry(pr[j + 1], t[j + 1], &carry);
-        }
-        t[NB64BLOCK - 1] = carry;
-    }
+    imm_umul(a->bits64, bits64[i], pr.bits64);
+    ML = (pr.bits64[0] + t.bits64[0]) * MM64;
+    imm_umul(_P.bits64, ML, p.bits64);
+	  c = pr.AddC(&p);
+    t.AddAndShift(&t, &pr, c);
 
-    // Final subtraction
-    uint64_t borrow = 0;
-    for (int j = 0; j < NB64BLOCK; j++) {
-        uint64_t temp = t[j] - _P.bits64[j] - borrow;
-        borrow = (temp > t[j]) ? 1 : (t[j] < _P.bits64[j] + borrow) ? 1 : 0;
-        p[j] = temp;
-    }
+  }
 
-    // Conditional move using CMOV
-    const uint64_t* src = borrow ? t : p;
-    memcpy(bits64, src, NB64BLOCK * 8);
+  p.Sub(&t,&_P);
+  if (p.IsPositive())
+    Set(&p);
+  else
+    Set(&t);
+
 }
 
 void Int::MontgomeryMult(Int *a, Int *b) {
@@ -954,7 +988,7 @@ void Int::ModMulK1(Int *a, Int *b) {
 
   // Reduce from 320 to 256 
   // No overflow possible here t[4]+c<=0x1000003D1ULL
-  al = _umul128_local(t[4] + c, 0x1000003D1ULL, &ah); 
+  al = _umul128(t[4] + c, 0x1000003D1ULL, &ah); 
   c = _addcarry_u64(0, r512[0], al, bits64 + 0);
   c = _addcarry_u64(c, r512[1], ah, bits64 + 1);
   c = _addcarry_u64(c, r512[2], 0ULL, bits64 + 2);
@@ -1033,7 +1067,7 @@ void Int::ModMulK1(Int *a) {
 
   // Reduce from 320 to 256 
   // No overflow possible here t[4]+c<=0x1000003D1ULL
-  al = _umul128_local(t[4] + c, 0x1000003D1ULL, &ah);
+  al = _umul128(t[4] + c, 0x1000003D1ULL, &ah);
   c = _addcarry_u64(0, r512[0], al, bits64 + 0);
   c = _addcarry_u64(c, r512[1], ah, bits64 + 1);
   c = _addcarry_u64(c, r512[2], 0, bits64 + 2);
@@ -1084,10 +1118,10 @@ void Int::ModSquareK1(Int *a) {
 
 
   //k=0
-  r512[0] = _umul128_local(a->bits64[0], a->bits64[0], &t[1]);
+  r512[0] = _umul128(a->bits64[0], a->bits64[0], &t[1]);
 
   //k=1
-  t[3] = _umul128_local(a->bits64[0], a->bits64[1], &t[4]);
+  t[3] = _umul128(a->bits64[0], a->bits64[1], &t[4]);
   c = _addcarry_u64(0, t[3], t[3], &t[3]);
   c = _addcarry_u64(c, t[4], t[4], &t[4]);
   c = _addcarry_u64(c,  0,  0, &t1);
@@ -1097,12 +1131,12 @@ void Int::ModSquareK1(Int *a) {
   r512[1] = t[3];
 
   //k=2
-  t[0] = _umul128_local(a->bits64[0], a->bits64[2], &t[1]);
+  t[0] = _umul128(a->bits64[0], a->bits64[2], &t[1]);
   c = _addcarry_u64(0, t[0], t[0], &t[0]);
   c = _addcarry_u64(c, t[1], t[1], &t[1]);
   c = _addcarry_u64(c,  0,  0, &t2);
 
-  u10 = _umul128_local(a->bits64[1], a->bits64[1], &u11);
+  u10 = _umul128(a->bits64[1], a->bits64[1], &u11);
   c = _addcarry_u64(0, t[0] , u10, &t[0]);
   c = _addcarry_u64(c, t[1] , u11, &t[1]);
   c = _addcarry_u64(c, t2 ,   0, &t2);
@@ -1112,8 +1146,8 @@ void Int::ModSquareK1(Int *a) {
   r512[2] = t[0];
 
   //k=3
-  t[3] = _umul128_local(a->bits64[0], a->bits64[3], &t[4]);
-  u10 = _umul128_local(a->bits64[1], a->bits64[2], &u11);
+  t[3] = _umul128(a->bits64[0], a->bits64[3], &t[4]);
+  u10 = _umul128(a->bits64[1], a->bits64[2], &u11);
 
   c = _addcarry_u64(0, t[3], u10, &t[3]);
   c = _addcarry_u64(c, t[4], u11, &t[4]);
@@ -1128,12 +1162,12 @@ void Int::ModSquareK1(Int *a) {
   r512[3] = t[3];
 
   //k=4
-  t[0] = _umul128_local(a->bits64[1], a->bits64[3], &t[1]);
+  t[0] = _umul128(a->bits64[1], a->bits64[3], &t[1]);
   c = _addcarry_u64(0, t[0], t[0], &t[0]);
   c = _addcarry_u64(c, t[1], t[1], &t[1]);
   c = _addcarry_u64(c, 0, 0, &t2);
 
-  u10 = _umul128_local(a->bits64[2], a->bits64[2], &u11);
+  u10 = _umul128(a->bits64[2], a->bits64[2], &u11);
   c = _addcarry_u64(0, t[0], u10, &t[0]);
   c = _addcarry_u64(c, t[1], u11, &t[1]);
   c = _addcarry_u64(c, t2, 0, &t2);
@@ -1143,7 +1177,7 @@ void Int::ModSquareK1(Int *a) {
   r512[4] = t[0];
 
   //k=5
-  t[3] = _umul128_local(a->bits64[2], a->bits64[3], &t[4]);
+  t[3] = _umul128(a->bits64[2], a->bits64[3], &t[4]);
   c = _addcarry_u64(0, t[3], t[3], &t[3]);
   c = _addcarry_u64(c, t[4], t[4], &t[4]);
   c = _addcarry_u64(c, 0, 0, &t1);
@@ -1153,7 +1187,7 @@ void Int::ModSquareK1(Int *a) {
   r512[5] = t[3];
 
   //k=6
-  t[0] = _umul128_local(a->bits64[3], a->bits64[3], &t[1]);
+  t[0] = _umul128(a->bits64[3], a->bits64[3], &t[1]);
   c = _addcarry_u64(0, t[0], t[4], &t[0]);
   c = _addcarry_u64(c, t[1], t1, &t[1]);
   r512[6] = t[0];
@@ -1171,7 +1205,7 @@ void Int::ModSquareK1(Int *a) {
 
   // Reduce from 320 to 256 
   // No overflow possible here t[4]+c<=0x1000003D1ULL
-  u10 = _umul128_local(t[4] + c, 0x1000003D1ULL, &u11);
+  u10 = _umul128(t[4] + c, 0x1000003D1ULL, &u11);
   c = _addcarry_u64(0, r512[0], u10, bits64 + 0);
   c = _addcarry_u64(c, r512[1], u11, bits64 + 1);
   c = _addcarry_u64(c, r512[2], 0, bits64 + 2);
@@ -1294,4 +1328,3 @@ void Int::ModMulK1order(Int *a) {
     Set(&t);
 
 }
-

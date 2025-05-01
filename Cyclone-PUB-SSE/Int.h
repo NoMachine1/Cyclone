@@ -216,15 +216,33 @@ private:
 #ifndef WIN64
 
 // Missing intrinsics
-static uint64_t inline _umul128_local(uint64_t a, uint64_t b, uint64_t *h) {
-  uint64_t rhi;
-  uint64_t rlo;
-  __asm__( "mulq  %[b];" :"=d"(rhi),"=a"(rlo) :"1"(a),[b]"rm"(b));
-  *h = rhi;
-  return rlo;
+inline uint64_t _umul128(uint64_t a, uint64_t b, uint64_t *h)
+{
+#if defined(__BMI2__)
+    uint64_t rlo, rhi;
+    __asm__ (
+        "mulx %[B], %[LO], %[HI]"   
+        : [LO]"=r"(rlo), [HI]"=r"(rhi)
+        : "d"(a), [B]"r"(b)
+        : "cc"  
+    );
+    *h = rhi;
+    return rlo;
+#else
+    uint64_t rhi, rlo;
+    __asm__ (
+        "mulq %[B]"
+        : "=d"(rhi), "=a"(rlo)
+        : "a"(a), [B]"r"(b)
+        : "cc"
+    );
+    *h = rhi;
+    return rlo;
+#endif
 }
 
-static int64_t inline _mul128_local(int64_t a, int64_t b, int64_t *h) {
+
+int64_t inline _mul128(int64_t a, int64_t b, int64_t *h) {
   uint64_t rhi;
   uint64_t rlo;
   __asm__( "imulq  %[b];" :"=d"(rhi),"=a"(rlo) :"1"(a),[b]"rm"(b));
@@ -232,12 +250,20 @@ static int64_t inline _mul128_local(int64_t a, int64_t b, int64_t *h) {
   return rlo;  
 }
 
-static uint64_t inline _udiv128(uint64_t hi, uint64_t lo, uint64_t d,uint64_t *r) {
-  uint64_t q;
-  uint64_t _r;
-  __asm__( "divq  %[d];" :"=d"(_r),"=a"(q) :"d"(hi),"a"(lo),[d]"rm"(d));
-  *r = _r;
-  return q;  
+static inline uint64_t _udiv128(uint64_t hi, uint64_t lo, uint64_t d, uint64_t *r)
+{
+    uint64_t q;    
+    uint64_t rem;  
+
+    asm (
+        "divq %4"
+        : "=d"(rem), "=a"(q)
+        : "a"(lo), "d"(hi), "r"(d)
+        : "cc"
+    );
+
+    *r = rem;
+    return q;
 }
 
 static uint64_t inline my_rdtsc() {
@@ -277,16 +303,16 @@ static void inline imm_mul(uint64_t *x, uint64_t y, uint64_t *dst,uint64_t *carr
 
   unsigned char c = 0;
   uint64_t h, carry;
-  dst[0] = _umul128_local(x[0], y, &h); carry = h;
-  c = _addcarry_u64(c, _umul128_local(x[1], y, &h), carry, dst + 1); carry = h;
-  c = _addcarry_u64(c, _umul128_local(x[2], y, &h), carry, dst + 2); carry = h;
-  c = _addcarry_u64(c, _umul128_local(x[3], y, &h), carry, dst + 3); carry = h;
-  c = _addcarry_u64(c, _umul128_local(x[4], y, &h), carry, dst + 4); carry = h;
+  dst[0] = _umul128(x[0], y, &h); carry = h;
+  c = _addcarry_u64(c, _umul128(x[1], y, &h), carry, dst + 1); carry = h;
+  c = _addcarry_u64(c, _umul128(x[2], y, &h), carry, dst + 2); carry = h;
+  c = _addcarry_u64(c, _umul128(x[3], y, &h), carry, dst + 3); carry = h;
+  c = _addcarry_u64(c, _umul128(x[4], y, &h), carry, dst + 4); carry = h;
 #if NB64BLOCK > 5
-  c = _addcarry_u64(c, _umul128_local(x[5], y, &h), carry, dst + 5); carry = h;
-  c = _addcarry_u64(c, _umul128_local(x[6], y, &h), carry, dst + 6); carry = h;
-  c = _addcarry_u64(c, _umul128_local(x[7], y, &h), carry, dst + 7); carry = h;
-  c = _addcarry_u64(c, _umul128_local(x[8], y, &h), carry, dst + 8); carry = h;
+  c = _addcarry_u64(c, _umul128(x[5], y, &h), carry, dst + 5); carry = h;
+  c = _addcarry_u64(c, _umul128(x[6], y, &h), carry, dst + 6); carry = h;
+  c = _addcarry_u64(c, _umul128(x[7], y, &h), carry, dst + 7); carry = h;
+  c = _addcarry_u64(c, _umul128(x[8], y, &h), carry, dst + 8); carry = h;
 #endif
   *carryH = carry;
 
@@ -296,17 +322,17 @@ static void inline imm_imul(uint64_t* x,uint64_t y,uint64_t* dst,uint64_t* carry
 
   unsigned char c = 0;
   uint64_t h,carry;
-  dst[0] = _umul128_local(x[0],y,&h); carry = h;
-  c = _addcarry_u64(c,_umul128_local(x[1],y,&h),carry,dst + 1); carry = h;
-  c = _addcarry_u64(c,_umul128_local(x[2],y,&h),carry,dst + 2); carry = h;
-  c = _addcarry_u64(c,_umul128_local(x[3],y,&h),carry,dst + 3); carry = h;
+  dst[0] = _umul128(x[0],y,&h); carry = h;
+  c = _addcarry_u64(c,_umul128(x[1],y,&h),carry,dst + 1); carry = h;
+  c = _addcarry_u64(c,_umul128(x[2],y,&h),carry,dst + 2); carry = h;
+  c = _addcarry_u64(c,_umul128(x[3],y,&h),carry,dst + 3); carry = h;
 #if NB64BLOCK > 5
-  c = _addcarry_u64(c,_umul128_local(x[4],y,&h),carry,dst + 4); carry = h;
-  c = _addcarry_u64(c,_umul128_local(x[5],y,&h),carry,dst + 5); carry = h;
-  c = _addcarry_u64(c,_umul128_local(x[6],y,&h),carry,dst + 6); carry = h;
-  c = _addcarry_u64(c,_umul128_local(x[7],y,&h),carry,dst + 7); carry = h;
+  c = _addcarry_u64(c,_umul128(x[4],y,&h),carry,dst + 4); carry = h;
+  c = _addcarry_u64(c,_umul128(x[5],y,&h),carry,dst + 5); carry = h;
+  c = _addcarry_u64(c,_umul128(x[6],y,&h),carry,dst + 6); carry = h;
+  c = _addcarry_u64(c,_umul128(x[7],y,&h),carry,dst + 7); carry = h;
 #endif
-  c = _addcarry_u64(c,_mul128_local(x[NB64BLOCK - 1],y,(int64_t*)&h),carry,dst + NB64BLOCK - 1); carry = h;
+  c = _addcarry_u64(c,_mul128(x[NB64BLOCK - 1],y,(int64_t*)&h),carry,dst + NB64BLOCK - 1); carry = h;
   * carryH = carry;
 
 }
@@ -316,15 +342,15 @@ static void inline imm_umul(uint64_t *x, uint64_t y, uint64_t *dst) {
   // Assume that x[NB64BLOCK-1] is 0
   unsigned char c = 0;
   uint64_t h, carry;
-  dst[0] = _umul128_local(x[0], y, &h); carry = h;
-  c = _addcarry_u64(c, _umul128_local(x[1], y, &h), carry, dst + 1); carry = h;
-  c = _addcarry_u64(c, _umul128_local(x[2], y, &h), carry, dst + 2); carry = h;
-  c = _addcarry_u64(c, _umul128_local(x[3], y, &h), carry, dst + 3); carry = h;
+  dst[0] = _umul128(x[0], y, &h); carry = h;
+  c = _addcarry_u64(c, _umul128(x[1], y, &h), carry, dst + 1); carry = h;
+  c = _addcarry_u64(c, _umul128(x[2], y, &h), carry, dst + 2); carry = h;
+  c = _addcarry_u64(c, _umul128(x[3], y, &h), carry, dst + 3); carry = h;
 #if NB64BLOCK > 5
-  c = _addcarry_u64(c, _umul128_local(x[4], y, &h), carry, dst + 4); carry = h;
-  c = _addcarry_u64(c, _umul128_local(x[5], y, &h), carry, dst + 5); carry = h;
-  c = _addcarry_u64(c, _umul128_local(x[6], y, &h), carry, dst + 6); carry = h;
-  c = _addcarry_u64(c, _umul128_local(x[7], y, &h), carry, dst + 7); carry = h;
+  c = _addcarry_u64(c, _umul128(x[4], y, &h), carry, dst + 4); carry = h;
+  c = _addcarry_u64(c, _umul128(x[5], y, &h), carry, dst + 5); carry = h;
+  c = _addcarry_u64(c, _umul128(x[6], y, &h), carry, dst + 6); carry = h;
+  c = _addcarry_u64(c, _umul128(x[7], y, &h), carry, dst + 7); carry = h;
 #endif
   _addcarry_u64(c, 0ULL, carry, dst + (NB64BLOCK - 1));
 
@@ -386,4 +412,3 @@ static inline int isStrictGreater128(uint64_t h1,uint64_t l1,uint64_t h2,uint64_
 }
 
 #endif // BIGINTH
-
