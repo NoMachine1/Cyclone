@@ -19,7 +19,7 @@
 
 #ifndef BIGINTH
 #define BIGINTH
-#include "Random.h"
+
 #include <string>
 #include <inttypes.h>
 #include <immintrin.h>

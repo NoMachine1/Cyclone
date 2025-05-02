@@ -21,7 +21,7 @@ CXXFLAGS = -m64 -std=c++17 -Ofast -mssse3 -Wall -Wextra \
            -fassociative-math -fopenmp -mavx2 -mbmi2 -madx -fwrapv
 
 # Source files
-SRCS = Cyclone.cpp SECP256K1.cpp Int.cpp Timer.cpp IntGroup.cpp IntMod.cpp \
+SRCS = Cyclone.cpp SECP256K1.cpp Int.cpp IntGroup.cpp IntMod.cpp \
        Point.cpp ripemd160_avx2.cpp sha256_avx2.cpp
 
 # Object files
@@ -29,13 +29,6 @@ OBJS = $(SRCS:.cpp=.o)
 
 # Target executable
 TARGET = Cyclone
-
-# Default target
-all: fix_rdtsc $(TARGET)
-
-# Target to replace __rdtsc with my_rdtsc
-fix_rdtsc:
-	find . -type f -name '*.cpp' -exec sed -i 's/__rdtsc/my_rdtsc/g' {} +
 
 # Link the object files to create the executable and then delete .o files
 $(TARGET): $(OBJS)
@@ -52,7 +45,7 @@ clean:
 	rm -f $(OBJS) $(TARGET)
 
 # Phony targets
-.PHONY: all clean fix_rdtsc
+.PHONY: all clean 
 
 else
 # Windows settings (MinGW-w64)
@@ -87,8 +80,8 @@ else
 endif
 
 # Source files
-SRCS = Cyclone.cpp SECP256K1.cpp Int.cpp Timer.cpp IntGroup.cpp IntMod.cpp \
-       Point.cpp ripemd160_avx2.cpp sha256_avx2.cpp Random.cpp  # Ensure Random.cpp is included
+SRCS = Cyclone.cpp SECP256K1.cpp Int.cpp IntGroup.cpp IntMod.cpp \
+       Point.cpp ripemd160_avx2.cpp sha256_avx2.cpp 
 
 # Object files
 OBJS = $(SRCS:.cpp=.o)
