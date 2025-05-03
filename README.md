@@ -68,7 +68,6 @@ The program is designed to search for a specific Bitcoin address (Hash160) withi
 - `-b <prefix_length>`: Specifies the prefix length for partial matches. Must be between **1 and 20** (because prefixes matter).
 - `-R`: Enables **random search mode**. The program will randomly generate private keys within the specified range. (Chaos is life.)
 - `-S`: Enables **sequential search mode** (default). The program will sequentially search through the specified range. (For those who like order in their chaos.)
-- `-s <stride>` : The stride value. Cyclone will skip <stride> keys between checks. (For when you're in a hurry... or just lazy.)
 - `-t <threads>`: Specifies the number of CPU threads to use. Defaults to the number of available CPU cores. (Because why not?)
 
 ---
