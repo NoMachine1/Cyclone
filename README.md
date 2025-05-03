@@ -52,7 +52,7 @@ From that day on, Bob still copy-pasted code, but he did it responsibly—and ke
 Cyclone is your go-to tool for solving Satoshi puzzles, whether you're feeling lucky or just really patient. Here's how to use it:
 
 ```bash
-./Cyclone -h <hash160_hex> [-p <puzzle> | -r <startHex:endHex> | -f <range_file>] -b <prefix_length> [-R | -S] [-t <threads>] [-s <stride>]
+./Cyclone -h <hash160_hex> [-p <puzzle> | -r <startHex:endHex> | -f <range_file>] -b <prefix_length> [-R | -S] [-t <threads>]
 ```
 The program is designed to search for a specific Bitcoin address (Hash160) within a given range of private keys. It supports both sequential and random search modes, and can utilize multiple CPU threads for faster computation.
 
