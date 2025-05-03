@@ -397,11 +397,10 @@ static void computeHash160BatchBinSingle(int numKeys,
 
 //------------------------------------------------------------------------------
 static void printUsage(const char *programName) {
-    std::cerr << "Usage: " << programName << " -h <hash160_hex> [-p <puzzle> | -r <startHex:endHex> | -f <range_file>] -b <prefix_length> [-R | -S] [-t <threads>] [-s <stride>]\n";
+    std::cerr << "Usage: " << programName << " -h <hash160_hex> [-p <puzzle> | -r <startHex:endHex> | -f <range_file>] -b <prefix_length> [-R | -S] [-t <threads>]\n";
     std::cerr << "  -R : Use random mode (default is sequential)\n";
     std::cerr << "  -S : Use sequential mode\n";
     std::cerr << "  -t : Number of CPU threads to use (default: all available cores)\n";
-    std::cerr << "  -s : Stride value for sequential mode (default: 1)\n";
     std::cerr << "  -f : File containing a list of ranges to scan\n";
 }
 
@@ -420,7 +419,7 @@ static void printStatsBlock(int numCPUs, const std::string &targetHash160Hex,
                             const std::string &rangeStr, double mkeysPerSec,
                             unsigned long long totalChecked, double elapsedTime,
                             int puzzle, bool randomMode, const std::string& partialMatchInfo = "",
-                            int progressSaves = 0, long double progressPercent = 0.0L, int stride = 1)
+                            int progressSaves = 0, long double progressPercent = 0.0L)
 {
     std::lock_guard<std::mutex> lock(coutMutex);
     static bool firstPrint = true;
@@ -449,7 +448,6 @@ static void printStatsBlock(int numCPUs, const std::string &targetHash160Hex,
     std::cout << "End Range     : " << rangeStr.substr(rangeStr.find(':') + 1) << "\n";
     std::cout << "Progress      : " << [&](){ if (randomMode) return std::string("N/A"); std::ostringstream oss; oss << std::fixed << std::setprecision(1) << progressPercent; return oss.str() + " %"; }() << "\n";
     std::cout << "Progress Save : " << progressSaves << "\n";
-    std::cout << "Stride        : " << stride << "\n";
     std::cout.flush();
 }
 
@@ -650,7 +648,6 @@ Int minKey, maxKey;
     std::string rangeFile; // File containing ranges
     bool rangeFileProvided = false; // Flag to indicate if a range file is provided
     int numCPUs = omp_get_num_procs(); // Default to all available CPU cores
-    int stride = 1; // Default stride value
 
     // Parse command-line arguments
     for (int i = 1; i < argc; i++) {
@@ -699,12 +696,6 @@ Int minKey, maxKey;
             numCPUs = std::stoi(argv[++i]);
             if (numCPUs <= 0) {
                 std::cerr << "Invalid number of threads. Must be greater than 0.\n";
-                return 1;
-            }
-        } else if (!std::strcmp(argv[i], "-s") && i + 1 < argc) {
-            stride = std::stoi(argv[++i]);
-            if (stride <= 0) {
-                std::cerr << "Invalid stride value. Must be greater than 0.\n";
                 return 1;
             }
         } else {
@@ -1101,7 +1092,7 @@ Int minKey, maxKey;
 
                 // Next step
                 if (!randomMode) {
-                Int step; step.SetInt32(stride * (fullBatchSize - 2));
+                Int step; step.SetInt32(fullBatchSize - 2);
                 privateKey.Add(&step);
                 }
 
@@ -1131,7 +1122,7 @@ Int minKey, maxKey;
                         printStatsBlock(numCPUs, targetHash160Hex, displayRange,
                                        mkeysPerSec, globalComparedCount,
                                        globalElapsedTime, puzzle, randomMode, "",
-                                       g_progressSaveCount, progressPercent, stride);
+                                       g_progressSaveCount, progressPercent);
                         lastStatusTime = now;
                     }
                 }
