@@ -1452,3 +1452,14 @@ std::string Int::GetBaseN(int n,char *charset) {
   return ret;
 
 }
+// ------------------------------------------------
+
+
+int Int::GetBit(uint32_t n) {
+
+  uint32_t byte = n>>5;
+  uint32_t bit  = n&31;
+  uint32_t mask = 1 << bit;
+  return (bits[byte] & mask)!=0;
+
+}
