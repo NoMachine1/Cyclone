@@ -12,13 +12,16 @@ ifeq ($(UNAME_S),Linux)
 CXX = g++
 
 # Compiler flags
-CXXFLAGS = -m64 -std=c++17 -Ofast -mssse3 -Wall -Wextra \
-           -Wno-write-strings -Wno-unused-variable -Wno-deprecated-copy \
-           -Wno-unused-parameter -Wno-sign-compare -Wno-strict-aliasing \
-           -Wno-unused-but-set-variable \
-           -funroll-loops -ftree-vectorize -fstrict-aliasing -fno-semantic-interposition \
-           -fvect-cost-model=unlimited -fno-trapping-math -fipa-ra -flto \
-           -fassociative-math -fopenmp -mavx2 -mbmi2 -madx -fwrapv
+CXXFLAGS = -m64 -std=c++17 -Ofast -march=native -mtune=native \
+           -Wall -Wextra -Wno-write-strings -Wno-unused-variable \
+           -Wno-deprecated-copy -Wno-unused-parameter -Wno-sign-compare \
+           -Wno-strict-aliasing -Wno-unused-but-set-variable \
+           -funroll-loops -ftree-vectorize -fstrict-aliasing \
+           -fno-semantic-interposition -fvect-cost-model=unlimited \
+           -fno-trapping-math -fipa-ra -flto -fassociative-math \
+           -fopenmp -mavx2 -mbmi2 -madx -fwrapv \
+           -fomit-frame-pointer -fpredictive-commoning -fgcse-sm -fgcse-las \
+           -fmodulo-sched -fmodulo-sched-allow-regmoves -funsafe-math-optimizations
 
 # Source files
 SRCS = Cyclone.cpp SECP256K1.cpp Int.cpp IntGroup.cpp IntMod.cpp \
@@ -64,13 +67,16 @@ ifeq ($(CHECK_COMPILER),)
 endif
 
 # Compiler flags (without LTO)
-CXXFLAGS = -m64 -std=c++17 -Ofast -mssse3 -Wall -Wextra \
-           -Wno-write-strings -Wno-unused-variable -Wno-deprecated-copy \
-           -Wno-unused-parameter -Wno-sign-compare -Wno-strict-aliasing \
-           -Wno-unused-but-set-variable -funroll-loops -ftree-vectorize \
-           -fstrict-aliasing -fno-semantic-interposition -fvect-cost-model=unlimited \
-           -fno-trapping-math -fipa-ra -fassociative-math -fopenmp \
-           -mavx2 -mbmi2 -madx -fwrapv
+CXXFLAGS = -m64 -std=c++17 -Ofast -march=native -mtune=native \
+           -Wall -Wextra -Wno-write-strings -Wno-unused-variable \
+           -Wno-deprecated-copy -Wno-unused-parameter -Wno-sign-compare \
+           -Wno-strict-aliasing -Wno-unused-but-set-variable \
+           -funroll-loops -ftree-vectorize -fstrict-aliasing \
+           -fno-semantic-interposition -fvect-cost-model=unlimited \
+           -fno-trapping-math -fipa-ra -flto -fassociative-math \
+           -fopenmp -mavx2 -mbmi2 -madx -fwrapv \
+           -fomit-frame-pointer -fpredictive-commoning -fgcse-sm -fgcse-las \
+           -fmodulo-sched -fmodulo-sched-allow-regmoves -funsafe-math-optimizations
 
 # Add -static flag if STATIC_LINKING is enabled
 ifeq ($(STATIC_LINKING), yes)
