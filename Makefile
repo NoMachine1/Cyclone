@@ -98,7 +98,7 @@ all: $(TARGET)
 # Link the object files to create the executable
 $(TARGET): $(OBJS)
 	$(CXX) $(CXXFLAGS) -o $(TARGET) $(OBJS)
-	del /q $(OBJS)
+	rm -f $(OBJS)
 
 # Compile each source file into an object file
 %.o: %.cpp
@@ -107,7 +107,7 @@ $(TARGET): $(OBJS)
 # Clean up build files
 clean:
 	@echo Cleaning...
-	del /q $(OBJS) $(TARGET)
+	rm -f $(OBJS) $(TARGET)
 
 # Phony targets
 .PHONY: all clean
